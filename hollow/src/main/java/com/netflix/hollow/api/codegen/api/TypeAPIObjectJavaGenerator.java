@@ -22,32 +22,28 @@ import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.substitut
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.typeAPIClassname;
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.uppercase;
 
+import com.netflix.hollow.api.codegen.CodeGeneratorConfig;
+import com.netflix.hollow.api.codegen.HollowAPIGenerator;
 import com.netflix.hollow.api.custom.HollowAPI;
 import com.netflix.hollow.api.custom.HollowObjectTypeAPI;
-
-import com.netflix.hollow.core.schema.HollowObjectSchema;
-import com.netflix.hollow.api.codegen.HollowAPIGenerator;
-import com.netflix.hollow.api.codegen.HollowJavaFileGenerator;
-import com.netflix.hollow.core.write.HollowObjectWriteRecord;
 import com.netflix.hollow.core.read.dataaccess.HollowObjectTypeDataAccess;
+import com.netflix.hollow.core.schema.HollowObjectSchema;
+import com.netflix.hollow.core.write.HollowObjectWriteRecord;
 import java.util.Comparator;
 import java.util.Set;
 import java.util.TreeSet;
 
 /**
  * This class contains template logic for generating a {@link HollowAPI} implementation.  Not intended for external consumption.
- * 
+ *
  * @see HollowAPIGenerator
- * 
+ *
  * @author dkoszewnik
  *
  */
-public class TypeAPIObjectJavaGenerator implements HollowJavaFileGenerator {
+public class TypeAPIObjectJavaGenerator extends HollowTypeAPIGenerator {
 
-    private final String apiClassname;
     private final HollowObjectSchema objectSchema;
-    private final String className;
-    private final String packageName;
 
     private final Set<Class<?>> importClasses = new TreeSet<Class<?>>(new Comparator<Class<?>>() {
         @Override
@@ -56,19 +52,12 @@ public class TypeAPIObjectJavaGenerator implements HollowJavaFileGenerator {
         }
     });
 
-    public TypeAPIObjectJavaGenerator(String apiClassname, String packageName, HollowObjectSchema schema) {
-        this.apiClassname = apiClassname;
+    public TypeAPIObjectJavaGenerator(String apiClassname, String packageName, HollowObjectSchema schema,CodeGeneratorConfig config) {
+        super(apiClassname, packageName, schema, config);
         this.objectSchema = schema;
-        this.className = typeAPIClassname(objectSchema.getName());
-        this.packageName = packageName;
 
         this.importClasses.add(HollowObjectTypeAPI.class);
         this.importClasses.add(HollowObjectTypeDataAccess.class);
-    }
-
-    @Override
-    public String getClassName() {
-        return className;
     }
 
     @Override
@@ -127,9 +116,7 @@ public class TypeAPIObjectJavaGenerator implements HollowJavaFileGenerator {
         classBodyBuilder.append("}");
 
         StringBuilder classBuilder = new StringBuilder();
-
-        if(!"".equals(packageName))
-            classBuilder.append("package ").append(packageName).append(";").append("\n\n");
+        appendPackageAndCommonImports(classBuilder);
 
         for(Class<?> clazz : importClasses) {
             classBuilder.append("import ").append(clazz.getName()).append(";\n");
@@ -145,7 +132,7 @@ public class TypeAPIObjectJavaGenerator implements HollowJavaFileGenerator {
     private String generateConstructor() {
         StringBuilder builder = new StringBuilder();
 
-        builder.append("    " + className + "(" + apiClassname + " api, HollowObjectTypeDataAccess typeDataAccess) {\n");
+        builder.append("    public " + className + "(" + apiClassname + " api, HollowObjectTypeDataAccess typeDataAccess) {\n");
         builder.append("        super(api, typeDataAccess, new String[] {\n");
 
         for(int i=0;i<objectSchema.numFields();i++) {

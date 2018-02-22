@@ -17,50 +17,40 @@
  */
 package com.netflix.hollow.api.producer.fs;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.nio.file.Files.createDirectories;
-import static java.nio.file.Files.newBufferedWriter;
-
-import java.io.BufferedWriter;
+import com.netflix.hollow.api.producer.HollowProducer;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import com.netflix.hollow.api.producer.HollowProducer;
-
 public class HollowFilesystemAnnouncer implements HollowProducer.Announcer {
+    
+    public static final String ANNOUNCEMENT_FILENAME = "announced.version";
+    
     private final Path publishPath;
-    private final Path annnouncementPath;
 
-    public HollowFilesystemAnnouncer(String namespace) {
-        this(namespace, "announced.version");
+    // TODO: deprecate in Hollow 3.0.0
+    // @Deprecated
+    public HollowFilesystemAnnouncer(File publishDir) {
+        this(publishDir.toPath());
     }
 
-    public HollowFilesystemAnnouncer(String namespace, String announcementFilename) {
-        this(Paths.get(System.getProperty("java.io.tmpdir"), namespace, "published"),
-                announcementFilename);
-    }
-
-    public HollowFilesystemAnnouncer(Path publishDir, String announcementFilename) {
-        this.publishPath = publishDir;
-        annnouncementPath = publishPath.resolve(announcementFilename);
+    /**
+     * @since 2.12.0
+     */
+    public HollowFilesystemAnnouncer(Path publishPath) {
+        this.publishPath = publishPath;
     }
 
     @Override
     public void announce(long stateVersion) {
-        BufferedWriter writer = null;
+        Path announcePath = publishPath.resolve(ANNOUNCEMENT_FILENAME);
         try {
-            createDirectories(publishPath);
-            writer = newBufferedWriter(annnouncementPath, UTF_8);
-            writer.write(String.valueOf(stateVersion));
+            Files.write(announcePath, String.valueOf(stateVersion).getBytes());
         } catch(IOException ex) {
-            throw new RuntimeException("Unable to write to announcement file", ex);
-        } finally {
-            try {
-                if(writer != null) writer.close();
-            } catch(IOException ex) {
-                ex.printStackTrace();
-            }
+            throw new RuntimeException("Unable to write to announcement file; path=" + announcePath, ex);
         }
     }
+
 }

@@ -22,44 +22,32 @@ import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.substitut
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.typeAPIClassname;
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.uppercase;
 
-import com.netflix.hollow.api.custom.HollowAPI;
-
-import com.netflix.hollow.core.schema.HollowObjectSchema;
+import com.netflix.hollow.api.codegen.CodeGeneratorConfig;
 import com.netflix.hollow.api.codegen.HollowAPIGenerator;
-import com.netflix.hollow.api.codegen.HollowJavaFileGenerator;
+import com.netflix.hollow.api.codegen.HollowCodeGenerationUtils;
+import com.netflix.hollow.api.codegen.HollowErgonomicAPIShortcuts;
+import com.netflix.hollow.api.codegen.HollowErgonomicAPIShortcuts.Shortcut;
+import com.netflix.hollow.api.custom.HollowAPI;
 import com.netflix.hollow.api.objects.delegate.HollowObjectDelegate;
+import com.netflix.hollow.core.schema.HollowObjectSchema;
 
 /**
  * This class contains template logic for generating a {@link HollowAPI} implementation.  Not intended for external consumption.
- * 
+ *
  * @see HollowAPIGenerator
- * 
- * @author dkoszewnik
  *
  */
-public class HollowObjectDelegateInterfaceGenerator implements HollowJavaFileGenerator {
+public class HollowObjectDelegateInterfaceGenerator extends HollowObjectDelegateGenerator {
 
-    private final String packageName;
-    private final HollowObjectSchema schema;
-    private final String className;
-
-    public HollowObjectDelegateInterfaceGenerator(String packageName, HollowObjectSchema schema) {
-        this.packageName = packageName;
-        this.schema = schema;
+    public HollowObjectDelegateInterfaceGenerator(String packageName, HollowObjectSchema schema, HollowErgonomicAPIShortcuts ergonomicShortcuts, CodeGeneratorConfig config) {
+        super(packageName, schema, ergonomicShortcuts, config);
         this.className = delegateInterfaceName(schema.getName());
-    }
-
-
-    @Override
-    public String getClassName() {
-        return className;
     }
 
     @Override
     public String generate() {
         StringBuilder classBuilder = new StringBuilder();
-
-        classBuilder.append("package ").append(packageName).append(";\n\n");
+        appendPackageAndCommonImports(classBuilder);
 
         classBuilder.append("import ").append(HollowObjectDelegate.class.getName()).append(";\n\n");
 
@@ -93,6 +81,29 @@ public class HollowObjectDelegateInterfaceGenerator implements HollowJavaFileGen
                 classBuilder.append("    public Long get").append(methodFieldName).append("Boxed(int ordinal);\n\n");
                 break;
             case REFERENCE:
+                Shortcut shortcut = ergonomicShortcuts.getShortcut(schema.getName() + "." + schema.getFieldName(i));
+                if(shortcut != null) {
+                    switch(shortcut.getType()) {
+                    case BOOLEAN:
+                    case DOUBLE:
+                    case FLOAT:
+                    case INT:
+                    case LONG:
+                        classBuilder.append("    public " + HollowCodeGenerationUtils.getJavaScalarType(shortcut.getType()) + " get").append(methodFieldName).append("(int ordinal);\n\n");
+                        classBuilder.append("    public " + HollowCodeGenerationUtils.getJavaBoxedType(shortcut.getType()) + " get").append(methodFieldName).append("Boxed(int ordinal);\n\n");
+                        break;
+                    case BYTES:
+                        classBuilder.append("    public byte[] get").append(methodFieldName).append("(int ordinal);\n\n");
+                        break;
+                    case STRING:
+                        classBuilder.append("    public String get").append(methodFieldName).append("(int ordinal);\n\n");
+                        classBuilder.append("    public boolean is").append(methodFieldName).append("Equal(int ordinal, String testValue);\n\n");
+                        break;
+                    case REFERENCE:
+                    default:
+                    }
+                }
+
                 classBuilder.append("    public int get").append(methodFieldName).append("Ordinal(int ordinal);\n\n");
                 break;
             case STRING:

@@ -19,56 +19,47 @@ package com.netflix.hollow.api.codegen.objects;
 
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.delegateCachedClassname;
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.hollowFactoryClassname;
-import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.hollowImplClassname;
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.typeAPIClassname;
 
+import com.netflix.hollow.api.codegen.CodeGeneratorConfig;
+import com.netflix.hollow.api.codegen.HollowAPIGenerator;
+import com.netflix.hollow.api.codegen.HollowConsumerJavaFileGenerator;
 import com.netflix.hollow.api.custom.HollowAPI;
 import com.netflix.hollow.api.custom.HollowTypeAPI;
-
-import com.netflix.hollow.core.schema.HollowListSchema;
-import com.netflix.hollow.core.schema.HollowMapSchema;
-import com.netflix.hollow.core.schema.HollowSchema;
-import com.netflix.hollow.core.schema.HollowSetSchema;
-import com.netflix.hollow.api.codegen.HollowAPIGenerator;
-import com.netflix.hollow.api.codegen.HollowJavaFileGenerator;
 import com.netflix.hollow.api.objects.delegate.HollowListCachedDelegate;
 import com.netflix.hollow.api.objects.delegate.HollowMapCachedDelegate;
 import com.netflix.hollow.api.objects.delegate.HollowSetCachedDelegate;
 import com.netflix.hollow.api.objects.provider.HollowFactory;
 import com.netflix.hollow.core.read.dataaccess.HollowTypeDataAccess;
+import com.netflix.hollow.core.schema.HollowListSchema;
+import com.netflix.hollow.core.schema.HollowMapSchema;
+import com.netflix.hollow.core.schema.HollowSchema;
+import com.netflix.hollow.core.schema.HollowSetSchema;
 
 /**
  * This class contains template logic for generating a {@link HollowAPI} implementation.  Not intended for external consumption.
- * 
+ *
  * @see HollowAPIGenerator
- * 
- * @author dkoszewnik
  *
  */
-public class HollowFactoryJavaGenerator implements HollowJavaFileGenerator {
+public class HollowFactoryJavaGenerator extends HollowConsumerJavaFileGenerator {
+    public static final String SUB_PACKAGE_NAME = "core";
 
-    private final String packageName;
     private final String objectClassName;
-    private final String className;
     private final HollowSchema schema;
 
-    public HollowFactoryJavaGenerator(String packageName, HollowSchema schema) {
-        this.packageName = packageName;
+    public HollowFactoryJavaGenerator(String packageName, HollowSchema schema, CodeGeneratorConfig config) {
+        super(packageName, SUB_PACKAGE_NAME, config);
+
         this.objectClassName = hollowImplClassname(schema.getName());
         this.className = hollowFactoryClassname(schema.getName());
         this.schema = schema;
     }
 
     @Override
-    public String getClassName() {
-        return className;
-    }
-
-    @Override
     public String generate() {
         StringBuilder builder = new StringBuilder();
-
-        builder.append("package " + packageName + ";\n\n");
+        appendPackageAndCommonImports(builder);
 
         builder.append("import " + HollowFactory.class.getName() + ";\n");
         builder.append("import " + HollowTypeDataAccess.class.getName() + ";\n");

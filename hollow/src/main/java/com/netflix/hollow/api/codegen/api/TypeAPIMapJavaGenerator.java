@@ -20,48 +20,34 @@ package com.netflix.hollow.api.codegen.api;
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.delegateLookupClassname;
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.typeAPIClassname;
 
+import com.netflix.hollow.api.codegen.CodeGeneratorConfig;
+import com.netflix.hollow.api.codegen.HollowAPIGenerator;
 import com.netflix.hollow.api.custom.HollowAPI;
 import com.netflix.hollow.api.custom.HollowMapTypeAPI;
-
-import com.netflix.hollow.core.schema.HollowMapSchema;
-import com.netflix.hollow.api.codegen.HollowAPIGenerator;
-import com.netflix.hollow.api.codegen.HollowJavaFileGenerator;
 import com.netflix.hollow.api.objects.delegate.HollowMapLookupDelegate;
 import com.netflix.hollow.core.read.dataaccess.HollowMapTypeDataAccess;
+import com.netflix.hollow.core.schema.HollowMapSchema;
 
 /**
  * This class contains template logic for generating a {@link HollowAPI} implementation.  Not intended for external consumption.
- * 
+ *
  * @see HollowAPIGenerator
- * 
+ *
  * @author dkoszewnik
  *
  */
-public class TypeAPIMapJavaGenerator implements HollowJavaFileGenerator {
-
-    private final String apiClassname;
-    private final String packageName;
-    private final String className;
+public class TypeAPIMapJavaGenerator extends HollowTypeAPIGenerator {
     private final HollowMapSchema schema;
 
-    public TypeAPIMapJavaGenerator(String stateEngineClassname, String packageName, HollowMapSchema schema) {
-        this.apiClassname = stateEngineClassname;
-        this.packageName = packageName;
+    public TypeAPIMapJavaGenerator(String apiClassname, String packageName, HollowMapSchema schema, CodeGeneratorConfig config) {
+        super(apiClassname, packageName, schema, config);
         this.schema = schema;
-        this.className = typeAPIClassname(schema.getName());
-    }
-
-    @Override
-    public String getClassName() {
-        return className;
     }
 
     @Override
     public String generate() {
         StringBuilder builder = new StringBuilder();
-
-        if(!"".equals(packageName))
-            builder.append("package ").append(packageName).append(";\n\n");
+        appendPackageAndCommonImports(builder);
 
         builder.append("import " + HollowMapTypeAPI.class.getName() + ";\n\n");
         builder.append("import " + HollowMapTypeDataAccess.class.getName() + ";\n");
@@ -72,7 +58,7 @@ public class TypeAPIMapJavaGenerator implements HollowJavaFileGenerator {
 
         builder.append("    private final ").append(delegateLookupClassname(schema)).append(" delegateLookupImpl;\n\n");
 
-        builder.append("    ").append(className).append("(").append(apiClassname).append(" api, HollowMapTypeDataAccess dataAccess) {\n");
+        builder.append("    public ").append(className).append("(").append(apiClassname).append(" api, HollowMapTypeDataAccess dataAccess) {\n");
         builder.append("        super(api, dataAccess);\n");
         builder.append("        this.delegateLookupImpl = new ").append(delegateLookupClassname(schema)).append("(this);\n");
         builder.append("    }\n\n");
@@ -92,7 +78,6 @@ public class TypeAPIMapJavaGenerator implements HollowJavaFileGenerator {
         builder.append("    public ").append(apiClassname).append(" getAPI() {\n");
         builder.append("        return (").append(apiClassname).append(")api;\n");
         builder.append("    }\n\n");
-
 
         builder.append("}");
 

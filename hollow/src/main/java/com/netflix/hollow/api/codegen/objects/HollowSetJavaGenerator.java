@@ -17,55 +17,42 @@
  */
 package com.netflix.hollow.api.codegen.objects;
 
-import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.hollowImplClassname;
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.typeAPIClassname;
 
-import com.netflix.hollow.api.custom.HollowAPI;
-
-import com.netflix.hollow.core.schema.HollowSetSchema;
+import com.netflix.hollow.api.codegen.CodeGeneratorConfig;
 import com.netflix.hollow.api.codegen.HollowAPIGenerator;
-import com.netflix.hollow.api.codegen.HollowJavaFileGenerator;
+import com.netflix.hollow.api.custom.HollowAPI;
 import com.netflix.hollow.api.objects.HollowSet;
 import com.netflix.hollow.api.objects.delegate.HollowSetDelegate;
 import com.netflix.hollow.api.objects.generic.GenericHollowRecordHelper;
+import com.netflix.hollow.core.schema.HollowSetSchema;
 import java.util.Set;
 
 /**
  * This class contains template logic for generating a {@link HollowAPI} implementation.  Not intended for external consumption.
- * 
+ *
  * @see HollowAPIGenerator
- * 
- * @author dkoszewnik
  *
  */
-public class HollowSetJavaGenerator implements HollowJavaFileGenerator {
+public class HollowSetJavaGenerator extends HollowCollectionsGenerator {
 
     private final HollowSetSchema schema;
-    private final String packageName;
-    private final String apiClassname;
-    private final String className;
     private final String elementClassName;
     private final boolean parameterize;
 
-    public HollowSetJavaGenerator(String packageName, String apiClassname, HollowSetSchema schema, Set<String> parameterizedTypes, boolean parameterizeClassNames) {
-        this.packageName = packageName;
-        this.apiClassname = apiClassname;
+    public HollowSetJavaGenerator(String packageName, String apiClassname, HollowSetSchema schema, Set<String> parameterizedTypes, boolean parameterizeClassNames, CodeGeneratorConfig config) {
+        super(packageName, apiClassname, schema, config);
+
         this.schema = schema;
-        this.className = hollowImplClassname(schema.getName());
         this.elementClassName = hollowImplClassname(schema.getElementType());
         this.parameterize = parameterizeClassNames || parameterizedTypes.contains(schema.getElementType());
     }
 
-    @Override
-    public String getClassName() {
-        return className;
-    }
 
     @Override
     public String generate() {
         StringBuilder builder = new StringBuilder();
-
-        builder.append("package " + packageName + ";\n\n");
+        appendPackageAndCommonImports(builder);
 
         builder.append("import " + HollowSet.class.getName() + ";\n");
         builder.append("import " + HollowSetSchema.class.getName() + ";\n");

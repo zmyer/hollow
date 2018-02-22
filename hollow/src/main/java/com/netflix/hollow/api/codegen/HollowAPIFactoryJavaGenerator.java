@@ -26,34 +26,25 @@ import java.util.Set;
 
 /**
  * This class contains template logic for generating a {@link HollowAPIFactory} implementation.  Not intended for external consumption.
- * 
+ *
  * @see HollowAPIGenerator
- * 
+ *
  */
-public class HollowAPIFactoryJavaGenerator implements HollowJavaFileGenerator {
+public class HollowAPIFactoryJavaGenerator extends HollowConsumerJavaFileGenerator {
+    public static final String SUB_PACKAGE_NAME = "core";
 
-    private final String packageName;
-    private final String className;
     private final String apiClassname;
 
-    public HollowAPIFactoryJavaGenerator(String packageName, String apiClassname) {
-        this.packageName = packageName;
+    public HollowAPIFactoryJavaGenerator(String packageName, String apiClassname, CodeGeneratorConfig config) {
+        super(packageName, SUB_PACKAGE_NAME, config);
         this.apiClassname = apiClassname;
         this.className = apiClassname + "Factory";
     }
 
     @Override
-    public String getClassName() {
-        return className;
-    }
-
-    @Override
     public String generate() {
         StringBuilder builder = new StringBuilder();
-
-        if(!"".equals(packageName)) {
-            builder.append("package ").append(packageName).append(";\n\n");
-        }
+        appendPackageAndCommonImports(builder);
 
         builder.append("import ").append(HollowAPIFactory.class.getName()).append(";\n");
         builder.append("import ").append(HollowAPI.class.getName()).append(";\n");
@@ -63,30 +54,31 @@ public class HollowAPIFactoryJavaGenerator implements HollowJavaFileGenerator {
         builder.append("import ").append(Set.class.getName()).append(";\n");
 
 
-        builder.append("\npublic class ").append(className).append(" implements HollowAPIFactory {\n\n");
+        builder.append("\n@SuppressWarnings(\"all\")\n");
+        builder.append("public class ").append(className).append(" implements HollowAPIFactory {\n\n");
 
         builder.append("    private final Set<String> cachedTypes;\n\n");
 
         builder.append("    public ").append(className).append("() {\n");
         builder.append("        this(Collections.<String>emptySet());\n");
         builder.append("    }\n\n");
-        
+
         builder.append("    public ").append(className).append("(Set<String> cachedTypes) {\n");
         builder.append("        this.cachedTypes = cachedTypes;\n");
         builder.append("    }\n\n");
-        
+
         builder.append("    @Override\n");
         builder.append("    public HollowAPI createAPI(HollowDataAccess dataAccess) {\n");
-        builder.append("        return new ").append(apiClassname).append("(dataAccess);\n");
+        builder.append("        return new ").append(apiClassname).append("(dataAccess, cachedTypes);\n");
         builder.append("    }\n\n");
-        
+
         builder.append("    @Override\n");
         builder.append("    public HollowAPI createAPI(HollowDataAccess dataAccess, HollowAPI previousCycleAPI) {\n");
         builder.append("        return new ").append(apiClassname).append("(dataAccess, cachedTypes, Collections.<String, HollowFactory<?>>emptyMap(), (").append(apiClassname).append(") previousCycleAPI);\n");
         builder.append("    }\n\n");
 
         builder.append("}");
-        
+
         return builder.toString();
     }
 

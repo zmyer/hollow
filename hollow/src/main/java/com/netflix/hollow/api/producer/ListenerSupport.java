@@ -22,11 +22,12 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-import com.netflix.hollow.api.consumer.HollowConsumer;
-import com.netflix.hollow.api.consumer.HollowConsumer.ReadState;
 import com.netflix.hollow.api.producer.HollowProducerListener.ProducerStatus;
-import com.netflix.hollow.api.producer.HollowProducerListener.RestoreStatus;
 import com.netflix.hollow.api.producer.HollowProducerListener.PublishStatus;
+import com.netflix.hollow.api.producer.HollowProducerListener.RestoreStatus;
+import com.netflix.hollow.api.producer.validation.AllValidationStatus;
+import com.netflix.hollow.api.producer.validation.AllValidationStatus.AllValidationStatusBuilder;
+import com.netflix.hollow.api.producer.validation.HollowValidationListener;
 
 /**
  * Beta API subject to change.
@@ -35,13 +36,19 @@ import com.netflix.hollow.api.producer.HollowProducerListener.PublishStatus;
  */
 final class ListenerSupport {
     private final Set<HollowProducerListener> listeners;
+    private final Set<HollowValidationListener> validationListeners;
 
     ListenerSupport() {
         listeners = new CopyOnWriteArraySet<>();
+        validationListeners = new CopyOnWriteArraySet<>();
     }
 
     void add(HollowProducerListener listener) {
         listeners.add(listener);
+    }
+    
+    void add(HollowValidationListener listener) {
+    	validationListeners.add(listener);
     }
 
     void remove(HollowProducerListener listener) {
@@ -106,7 +113,7 @@ final class ListenerSupport {
         for(final HollowProducerListener l : listeners) l.onArtifactPublish(status, builder.elapsed(), MILLISECONDS);
     }
 
-    ProducerStatus.Builder fireIntegrityCheckStart(ReadState readState) {
+    ProducerStatus.Builder fireIntegrityCheckStart(HollowProducer.ReadState readState) {
         ProducerStatus.Builder psb = new ProducerStatus.Builder().version(readState);
         for(final HollowProducerListener l : listeners) l.onIntegrityCheckStart(psb.version());
         return psb;
@@ -117,18 +124,27 @@ final class ListenerSupport {
         for(final HollowProducerListener l : listeners) l.onIntegrityCheckComplete(st, psb.elapsed(), MILLISECONDS);
     }
 
-    ProducerStatus.Builder fireValidationStart(HollowConsumer.ReadState readState) {
+    ProducerStatus.Builder fireValidationStart(HollowProducer.ReadState readState) {
         ProducerStatus.Builder psb = new ProducerStatus.Builder().version(readState);
         for(final HollowProducerListener l : listeners) l.onValidationStart(psb.version());
+        
+        long version = readState.getVersion();
+        for(final HollowValidationListener vl: validationListeners){
+			vl.onValidationStart(version);
+        }
+        
         return psb;
     }
 
-    void fireValidationComplete(ProducerStatus.Builder psb) {
+    void fireValidationComplete(ProducerStatus.Builder psb, AllValidationStatusBuilder valStatusBuilder) {
         ProducerStatus st = psb.build();
         for(final HollowProducerListener l : listeners) l.onValidationComplete(st, psb.elapsed(), MILLISECONDS);
+        
+        AllValidationStatus valStatus = valStatusBuilder.build();
+        for(final HollowValidationListener vl : validationListeners) vl.onValidationComplete(valStatus, psb.elapsed(), MILLISECONDS);
     }
 
-    ProducerStatus.Builder fireAnnouncementStart(HollowConsumer.ReadState readState) {
+    ProducerStatus.Builder fireAnnouncementStart(HollowProducer.ReadState readState) {
         ProducerStatus.Builder psb = new ProducerStatus.Builder().version(readState);
         for(final HollowProducerListener l : listeners) l.onAnnouncementStart(psb.version());
         return psb;

@@ -17,6 +17,8 @@
  */
 package com.netflix.hollow.history.ui.jetty;
 
+import com.netflix.hollow.api.consumer.HollowConsumer;
+
 import com.netflix.hollow.history.ui.HollowHistoryUI;
 import com.netflix.hollow.tools.history.HollowHistory;
 
@@ -25,6 +27,14 @@ public class HollowHistoryUIServer {
 
     private final UIServer server;
     private final HollowHistoryUI ui;
+    
+    public HollowHistoryUIServer(HollowConsumer consumer, int port) {
+        this(new HollowHistoryUI("", consumer), port);
+    }
+    
+    public HollowHistoryUIServer(HollowConsumer consumer, int numStatesToTrack, int port) {
+        this(new HollowHistoryUI("", consumer, numStatesToTrack), port);
+    }
 
     public HollowHistoryUIServer(HollowHistory history, int port) {
         this(new HollowHistoryUI("", history), port);
@@ -35,16 +45,18 @@ public class HollowHistoryUIServer {
         this.ui = ui;
     }
 
-    public void start() throws Exception {
+    public HollowHistoryUIServer start() throws Exception {
         server.start();
+        return this;
     }
 
     public void stop() throws Exception {
         server.stop();
     }
 
-    public void join() throws InterruptedException {
+    public HollowHistoryUIServer join() throws InterruptedException {
         server.join();
+        return this;
     }
 
     public HollowHistoryUI getUI() {

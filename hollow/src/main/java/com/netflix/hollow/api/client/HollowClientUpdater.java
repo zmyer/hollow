@@ -17,18 +17,19 @@
  */
 package com.netflix.hollow.api.client;
 
-import com.netflix.hollow.api.custom.HollowAPI;
+import java.util.List;
 
-import com.netflix.hollow.core.util.HollowObjectHashCodeFinder;
+import com.netflix.hollow.api.consumer.HollowConsumer;
+import com.netflix.hollow.api.custom.HollowAPI;
+import com.netflix.hollow.api.metrics.HollowConsumerMetrics;
+import com.netflix.hollow.api.metrics.HollowMetricsCollector;
 import com.netflix.hollow.core.memory.pool.ArraySegmentRecycler;
-import com.netflix.hollow.core.read.filter.HollowFilterConfig;
 import com.netflix.hollow.core.read.engine.HollowReadStateEngine;
+import com.netflix.hollow.core.read.filter.HollowFilterConfig;
+import com.netflix.hollow.core.util.HollowObjectHashCodeFinder;
 
 /**
- * A class comprising much of the internal state of a HollowClient.  Not intended for external consumption.
- * 
- * @author dkoszewnik
- *
+ * A class comprising much of the internal state of a {@link HollowConsumer}.  Not intended for external consumption.
  */
 public class HollowClientUpdater {
 
@@ -38,23 +39,37 @@ public class HollowClientUpdater {
     private final FailedTransitionTracker failedTransitionTracker;
     private final StaleHollowReferenceDetector staleReferenceDetector;
 
-    private final HollowUpdateListener updateListener;
+    private final List<HollowConsumer.RefreshListener> refreshListeners;
     private final HollowAPIFactory apiFactory;
     private final HollowObjectHashCodeFinder hashCodeFinder;
-    private final HollowClientMemoryConfig memoryConfig;
+    private final HollowConsumer.ObjectLongevityConfig objectLongevityConfig;
+    private final HollowConsumer.DoubleSnapshotConfig doubleSnapshotConfig;
+    private final HollowConsumerMetrics metrics;
+    private final HollowMetricsCollector metricsCollector;
 
     private HollowFilterConfig filter;
 
-    public HollowClientUpdater(HollowBlobRetriever transitionCreator, HollowUpdateListener updateListener, HollowAPIFactory apiFactory, HollowObjectHashCodeFinder hashCodeFinder, HollowClientMemoryConfig memoryConfig) {
-        this.planner = new HollowUpdatePlanner(transitionCreator);
+    public HollowClientUpdater(HollowConsumer.BlobRetriever transitionCreator,
+                               List<HollowConsumer.RefreshListener> updateListeners,
+                               HollowAPIFactory apiFactory,
+                               HollowConsumer.DoubleSnapshotConfig doubleSnapshotConfig,
+                               HollowObjectHashCodeFinder hashCodeFinder,
+                               HollowConsumer.ObjectLongevityConfig objectLongevityConfig,
+                               HollowConsumer.ObjectLongevityDetector objectLongevityDetector,
+                               HollowConsumerMetrics metrics,
+                               HollowMetricsCollector metricsCollector) {
+        this.planner = new HollowUpdatePlanner(transitionCreator, doubleSnapshotConfig);
         this.failedTransitionTracker = new FailedTransitionTracker();
-        this.staleReferenceDetector = new StaleHollowReferenceDetector(memoryConfig, updateListener);
+        this.staleReferenceDetector = new StaleHollowReferenceDetector(objectLongevityConfig, objectLongevityDetector);
 
-        this.updateListener = updateListener;
+        this.refreshListeners = updateListeners;
         this.apiFactory = apiFactory;
         this.hashCodeFinder = hashCodeFinder;
-        this.memoryConfig = memoryConfig;
+        this.doubleSnapshotConfig = doubleSnapshotConfig;
+        this.objectLongevityConfig = objectLongevityConfig;
         this.staleReferenceDetector.startMonitoring();
+        this.metrics = metrics;
+        this.metricsCollector = metricsCollector;
     }
 
     public synchronized boolean updateTo(long version) throws Throwable {
@@ -63,21 +78,22 @@ public class HollowClientUpdater {
 
         long beforeVersion = getCurrentVersionId();
 
-        updateListener.refreshStarted(beforeVersion, version);
+        for(HollowConsumer.RefreshListener listener : refreshListeners)
+            listener.refreshStarted(beforeVersion, version);
 
         try {
             HollowUpdatePlan updatePlan = planUpdate(version);
 
-            if(updatePlan.destinationVersion() == Long.MIN_VALUE)
+            if(updatePlan.destinationVersion() == Long.MIN_VALUE && version != Long.MAX_VALUE)
                 throw new Exception("Could not create an update plan for version " + version);
 
-            if(updatePlan.destinationVersion() == getCurrentVersionId())
+            if(updatePlan.destinationVersion(version) == getCurrentVersionId())
                 return true;
 
             if(updatePlan.isSnapshotPlan()) {
-                if(hollowDataHolder == null || memoryConfig.allowDoubleSnapshot()) {
+                if(hollowDataHolder == null || doubleSnapshotConfig.allowDoubleSnapshot()) {
                     HollowReadStateEngine newStateEngine = newStateEngine();
-                    HollowDataHolder newHollowDataHolder = new HollowDataHolder(newStateEngine, apiFactory, failedTransitionTracker, staleReferenceDetector, updateListener, memoryConfig);
+                    HollowDataHolder newHollowDataHolder = new HollowDataHolder(newStateEngine, apiFactory, failedTransitionTracker, staleReferenceDetector, refreshListeners, objectLongevityConfig);
                     newHollowDataHolder.setFilter(filter);
                     newHollowDataHolder.update(updatePlan);
                     hollowDataHolder = newHollowDataHolder;
@@ -87,13 +103,30 @@ public class HollowClientUpdater {
                 hollowDataHolder.update(updatePlan);
             }
 
-            updateListener.refreshCompleted(beforeVersion, getCurrentVersionId(), version);
+            for(HollowConsumer.RefreshListener refreshListener : refreshListeners)
+                refreshListener.refreshSuccessful(beforeVersion, getCurrentVersionId(), version);
+
+            metrics.updateTypeStateMetrics(getStateEngine(), version);
+            if(metricsCollector != null)
+                metricsCollector.collect(metrics);
             return getCurrentVersionId() == version;
         } catch(Throwable th) {
             forceDoubleSnapshotNextUpdate();
-            updateListener.refreshFailed(beforeVersion, getCurrentVersionId(), version, th);
+            for(HollowConsumer.RefreshListener refreshListener : refreshListeners)
+                refreshListener.refreshFailed(beforeVersion, getCurrentVersionId(), version, th);
+            metrics.updateRefreshFailed();
+            if(metricsCollector != null)
+                metricsCollector.collect(metrics);
             throw th;
         }
+    }
+    
+    public void addRefreshListener(HollowConsumer.RefreshListener refreshListener) {
+        refreshListeners.add(refreshListener);
+    }
+
+    public void removeRefreshListener(HollowConsumer.RefreshListener refreshListener) {
+        refreshListeners.remove(refreshListener);
     }
 
     public long getCurrentVersionId() {
@@ -109,11 +142,11 @@ public class HollowClientUpdater {
     private HollowUpdatePlan planUpdate(long version) throws Exception {
         if(shouldCreateSnapshotPlan())
             return planner.planInitializingUpdate(version);
-        return planner.planUpdate(hollowDataHolder.getCurrentVersion(), version, memoryConfig.allowDoubleSnapshot());
+        return planner.planUpdate(hollowDataHolder.getCurrentVersion(), version, doubleSnapshotConfig.allowDoubleSnapshot());
     }
 
     private boolean shouldCreateSnapshotPlan() {
-        return hollowDataHolder == null || (forceDoubleSnapshot && memoryConfig.allowDoubleSnapshot());
+        return hollowDataHolder == null || (forceDoubleSnapshot && doubleSnapshotConfig.allowDoubleSnapshot());
     }
 
     private HollowReadStateEngine newStateEngine() {
@@ -139,10 +172,6 @@ public class HollowClientUpdater {
 
     public void setFilter(HollowFilterConfig filter) {
         this.filter = filter;
-    }
-
-    public void setMaxDeltas(int maxDeltas) {
-        this.planner.setMaxDeltas(maxDeltas);
     }
     
     public void clearFailedTransitions() {

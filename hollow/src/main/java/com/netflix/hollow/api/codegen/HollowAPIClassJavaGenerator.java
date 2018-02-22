@@ -18,11 +18,11 @@
 package com.netflix.hollow.api.codegen;
 
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.hollowFactoryClassname;
-import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.hollowImplClassname;
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.hollowObjectProviderName;
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.lowercase;
 import static com.netflix.hollow.api.codegen.HollowCodeGenerationUtils.typeAPIClassname;
 
+import com.netflix.hollow.api.consumer.HollowConsumerAPI;
 import com.netflix.hollow.api.custom.HollowAPI;
 import com.netflix.hollow.api.objects.provider.HollowFactory;
 import com.netflix.hollow.api.objects.provider.HollowObjectCacheProvider;
@@ -53,27 +53,21 @@ import java.util.Set;
 
 /**
  * This class contains template logic for generating a {@link HollowAPI} implementation.  Not intended for external consumption.
- * 
+ *
  * @see HollowAPIGenerator
  */
-public class HollowAPIClassJavaGenerator implements HollowJavaFileGenerator {
+public class HollowAPIClassJavaGenerator extends HollowConsumerJavaFileGenerator {
+    public static final String SUB_PACKAGE_NAME = "";
 
-    private final String packageName;
-    private final String className;
     private final HollowDataset dataset;
     private final boolean parameterizeClassNames;
 
+    public HollowAPIClassJavaGenerator(String packageName, String apiClassname, HollowDataset dataset, boolean parameterizeClassNames, CodeGeneratorConfig config) {
+        super(packageName, SUB_PACKAGE_NAME, config);
 
-    public HollowAPIClassJavaGenerator(String packageName, String apiClassname, HollowDataset dataset, boolean parameterizeClassNames) {
-        this.packageName = packageName;
         this.className = apiClassname;
         this.dataset = dataset;
         this.parameterizeClassNames = parameterizeClassNames;
-    }
-
-    @Override
-    public String getClassName() {
-        return className;
     }
 
     @Override
@@ -81,15 +75,13 @@ public class HollowAPIClassJavaGenerator implements HollowJavaFileGenerator {
         List<HollowSchema> schemaList = HollowSchemaSorter.dependencyOrderedSchemaList(dataset);
 
         StringBuilder builder = new StringBuilder();
-
-        if(!"".equals(packageName)) {
-            builder.append("package ").append(packageName).append(";\n\n");
-        }
+        appendPackageAndCommonImports(builder);
 
         builder.append("import ").append(Collection.class.getName()).append(";\n");
         builder.append("import ").append(Collections.class.getName()).append(";\n");
         builder.append("import ").append(Set.class.getName()).append(";\n");
         builder.append("import ").append(Map.class.getName()).append(";\n");
+        builder.append("import ").append(HollowConsumerAPI.class.getName()).append(";\n");
         builder.append("import ").append(HollowAPI.class.getName()).append(";\n");
         builder.append("import ").append(HollowDataAccess.class.getName()).append(";\n");
         builder.append("import ").append(HollowTypeDataAccess.class.getName()).append(";\n");
@@ -110,9 +102,19 @@ public class HollowAPIClassJavaGenerator implements HollowJavaFileGenerator {
         builder.append("import ").append(SampleResult.class.getName()).append(";\n");
         builder.append("import ").append(AllHollowRecordCollection.class.getName()).append(";\n");
 
-
         builder.append("\n@SuppressWarnings(\"all\")\n");
-        builder.append("public class ").append(className).append(" extends HollowAPI {\n\n");
+        builder.append("public class ").append(className).append(" extends HollowAPI ");
+        Set<String> primitiveTypes = HollowCodeGenerationUtils.getPrimitiveTypes(schemaList); // Implement Primitive Type Retriever(s)
+        if (config.isUseHollowPrimitiveTypes() && !primitiveTypes.isEmpty()) {
+            builder.append("implements ");
+            int itemCount = 0;
+            for(String pType : primitiveTypes) {
+                if (itemCount++ > 0) builder.append(",");
+
+                builder.append(" HollowConsumerAPI.").append(HollowCodeGenerationUtils.upperFirstChar(pType)).append("Retriever");
+            }
+        }
+        builder.append(" {\n\n");
 
         builder.append("    private final HollowObjectCreationSampler objectCreationSampler;\n\n");
 
@@ -201,14 +203,14 @@ public class HollowAPIClassJavaGenerator implements HollowJavaFileGenerator {
                 builder.append("            }\n");
                 builder.append("        };\n");
                 builder.append("    }\n");
-                
+
                 builder.append("    public <T> T get").append(hollowImplClassname(schema.getName())).append("(int ordinal) {\n");
                 builder.append("        objectCreationSampler.recordCreation(").append(i).append(");\n");
                 builder.append("        return (T) ").append(hollowObjectProviderName(schema.getName())).append(".getHollowObject(ordinal);\n");
                 builder.append("    }\n");
             } else {
                 String hollowImplClassname = hollowImplClassname(schema.getName());
-                
+
                 builder.append("    public Collection<"+hollowImplClassname+"> getAll").append(hollowImplClassname).append("() {\n");
                 builder.append("        return new AllHollowRecordCollection<"+hollowImplClassname+">(getDataAccess().getTypeDataAccess(\"").append(schema.getName()).append("\").getTypeState()) {\n");
                 builder.append("            protected "+hollowImplClassname+" getForOrdinal(int ordinal) {\n");
@@ -216,7 +218,7 @@ public class HollowAPIClassJavaGenerator implements HollowJavaFileGenerator {
                 builder.append("            }\n");
                 builder.append("        };\n");
                 builder.append("    }\n");
-                
+
                 builder.append("    public ").append(hollowImplClassname).append(" get").append(hollowImplClassname).append("(int ordinal) {\n");
                 builder.append("        objectCreationSampler.recordCreation(").append(i).append(");\n");
                 builder.append("        return (").append(hollowImplClassname).append(")").append(hollowObjectProviderName(schema.getName())).append(".getHollowObject(ordinal);\n");

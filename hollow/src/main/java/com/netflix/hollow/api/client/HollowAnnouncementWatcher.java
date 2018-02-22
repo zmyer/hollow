@@ -17,6 +17,8 @@
  */
 package com.netflix.hollow.api.client;
 
+import com.netflix.hollow.api.consumer.HollowConsumer;
+
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,10 +33,36 @@ import java.util.concurrent.ThreadFactory;
  * A default implementation {@link HollowAnnouncementWatcher.DefaultWatcher} is available.  If this implementation
  * is used, calling {@link HollowClient#triggerRefresh()} will always attempt to get to the latest state, unless an 
  * explicit state was specified via {@link HollowClient#triggerRefreshTo(long)}.
+ * 
+ * @deprecated Implement the {@link HollowConsumer.AnnouncementWatcher} for use with the {@link HollowConsumer} instead.
  *
- * @author dkoszewnik
  */
+@Deprecated
 public abstract class HollowAnnouncementWatcher {
+
+    private final ExecutorService refreshExecutor;
+
+    /**
+     * Construct a HollowAnnouncementWatcher with a default ExecutorService.
+     */
+    public HollowAnnouncementWatcher() {
+        refreshExecutor = Executors.newFixedThreadPool(1, new ThreadFactory() {
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r);
+                t.setDaemon(true);
+                return t;
+            }
+        });
+    }
+
+    /**
+     * Construct a HollowAnnouncementWatcher with the specified ExecutorService.
+     *
+     * @param refreshExecutor the ExecutorService to use for asynchronous state refresh.
+     */
+    public HollowAnnouncementWatcher(ExecutorService refreshExecutor) {
+        this.refreshExecutor = refreshExecutor;
+    }
 
     /**
      * Return the latest announced version.
@@ -55,6 +83,13 @@ public abstract class HollowAnnouncementWatcher {
      */
     public void setLatestVersion(long latestVersion) {
         throw new UnsupportedOperationException("Cannot explicitly set latest version on a " + this.getClass());
+    }
+
+    /**
+     * Will force a double snapshot refresh on the next update.
+     */
+    protected void forceDoubleSnapshotNextUpdate() {
+        client.forceDoubleSnapshotNextUpdate();
     }
 
     /**
@@ -106,23 +141,25 @@ public abstract class HollowAnnouncementWatcher {
 
 
     private HollowClient client;
+    
+    protected HollowClient getClientToNotify() { return client; } 
 
     void setClientToNotify(HollowClient client) {
         this.client = client;
         subscribeToEvents();
     }
 
-    private final ExecutorService refreshExecutor = Executors.newFixedThreadPool(1, new ThreadFactory() {
-        public Thread newThread(Runnable r) {
-            Thread t = new Thread(r);
-            t.setDaemon(true);
-            return t;
-        }
-    });
-
     public static class DefaultWatcher extends HollowAnnouncementWatcher {
 
         private long latestVersion = Long.MAX_VALUE;
+
+        public DefaultWatcher() {
+            super();
+        }
+
+        public DefaultWatcher(ExecutorService refreshExecutor) {
+            super(refreshExecutor);
+        }
 
         @Override
         public long getLatestVersion() {

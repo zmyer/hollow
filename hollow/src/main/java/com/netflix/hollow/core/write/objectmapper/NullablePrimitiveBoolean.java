@@ -17,6 +17,10 @@
  */
 package com.netflix.hollow.core.write.objectmapper;
 
+/**
+ * @deprecated Use the @HollowInline annotation with a Boolean field instead. 
+ */
+@Deprecated
 public enum NullablePrimitiveBoolean {
     TRUE,
     FALSE;

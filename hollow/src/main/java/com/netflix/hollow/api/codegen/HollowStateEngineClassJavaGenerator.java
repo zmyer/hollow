@@ -64,8 +64,6 @@ import java.util.Set;
  * 
  * @see HollowAPIGenerator
  * 
- * @author dkoszewnik
- *
  */
 public class HollowStateEngineClassJavaGenerator implements HollowJavaFileGenerator {
 
@@ -73,12 +71,16 @@ public class HollowStateEngineClassJavaGenerator implements HollowJavaFileGenera
     private final String className;
     private final HollowStateEngine stateEngine;
     private final boolean parameterizeClassNames;
+    private final String classPostfix;
+    private final boolean useAggressiveSubstitutions;
 
-    public HollowStateEngineClassJavaGenerator(String packageName, String className, HollowStateEngine stateEngine, boolean parameterizeClassNames) {
+    public HollowStateEngineClassJavaGenerator(String packageName, String className, HollowStateEngine stateEngine, boolean parameterizeClassNames, String classPostfix, boolean useAggressiveSubstitutions) {
         this.packageName = packageName;
         this.className = className;
         this.stateEngine = stateEngine;
         this.parameterizeClassNames = parameterizeClassNames;
+        this.classPostfix = classPostfix;
+        this.useAggressiveSubstitutions = useAggressiveSubstitutions;
     }
 
     @Override
@@ -218,7 +220,7 @@ public class HollowStateEngineClassJavaGenerator implements HollowJavaFileGenera
 
         for (int i=0;i<schemaList.size();i++) {
             HollowSchema schema = schemaList.get(i);
-            String hollowImplClassname = hollowImplClassname(schema.getName());
+            String hollowImplClassname = hollowImplClassname(schema.getName(), classPostfix, useAggressiveSubstitutions);
             if(parameterizeClassNames)
                 builder.append("    public <T> T get").append(hollowImplClassname).append("(int ordinal){\n");
             else

@@ -19,7 +19,6 @@ package com.netflix.hollow.diff.ui.pages;
 
 import com.netflix.hollow.core.read.engine.object.HollowObjectTypeReadState;
 import com.netflix.hollow.core.util.IntList;
-import com.netflix.hollow.diff.ui.HollowDiffSession;
 import com.netflix.hollow.diff.ui.HollowDiffUI;
 import com.netflix.hollow.diff.ui.model.HollowDiffUIBreadcrumbs;
 import com.netflix.hollow.diff.ui.model.HollowFieldDiffScore;
@@ -27,6 +26,7 @@ import com.netflix.hollow.diff.ui.model.HollowObjectPairDiffScore;
 import com.netflix.hollow.diff.ui.model.HollowUnmatchedObject;
 import com.netflix.hollow.tools.diff.HollowTypeDiff;
 import com.netflix.hollow.tools.diff.count.HollowFieldDiff;
+import com.netflix.hollow.ui.HollowUISession;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -48,7 +48,7 @@ public class DiffTypePage extends DiffPage {
     }
 
     @Override
-    protected void setUpContext(HttpServletRequest req, HollowDiffSession session, VelocityContext ctx) {
+    protected void setUpContext(HttpServletRequest req, HollowUISession session, VelocityContext ctx) {
         String typeName = req.getParameter("type");
         HollowTypeDiff typeDiff = getTypeDiff(typeName);
 
@@ -134,6 +134,9 @@ public class DiffTypePage extends DiffPage {
     }
 
     private List<HollowObjectPairDiffScore> aggregateFieldDiffScores(HollowTypeDiff typeDiff) {
+        // Handle from State missing Type
+        if (typeDiff.getFromTypeState()==null) return Collections.emptyList();
+
         List<HollowObjectPairDiffScore> scores;
         int maxFromOrdinal = typeDiff.getFromTypeState().maxOrdinal();
         HollowObjectPairDiffScore[] allDiffPairsIndexedByFromOrdinal = new HollowObjectPairDiffScore[maxFromOrdinal + 1];
@@ -175,6 +178,8 @@ public class DiffTypePage extends DiffPage {
             HollowTypeDiff typeDiff,
             HollowObjectTypeReadState typeState,
             IntList unmatchedOrdinals) {
+        // Handle typeState missing from either from or to
+        if (typeState==null) return Collections.emptyList();
 
         List<HollowUnmatchedObject> list = cache.get(typeDiff.getTypeName());
         if(list != null)

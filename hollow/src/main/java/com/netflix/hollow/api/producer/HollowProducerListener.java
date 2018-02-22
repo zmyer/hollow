@@ -20,12 +20,10 @@ package com.netflix.hollow.api.producer;
 import static com.netflix.hollow.api.producer.HollowProducerListener.Status.FAIL;
 import static com.netflix.hollow.api.producer.HollowProducerListener.Status.SUCCESS;
 
+import com.netflix.hollow.api.producer.HollowProducer.ReadState;
+import com.netflix.hollow.api.producer.HollowProducer.WriteState;
 import java.util.EventListener;
 import java.util.concurrent.TimeUnit;
-
-import com.netflix.hollow.api.consumer.HollowConsumer;
-import com.netflix.hollow.api.consumer.HollowConsumer.ReadState;
-import com.netflix.hollow.api.producer.HollowProducer.WriteState;
 
 /**
  * Beta API subject to change.
@@ -62,8 +60,8 @@ public interface HollowProducerListener extends EventListener {
 
     /**
      * Indicates that the next state produced will begin a new delta chain.
-     * Thiis will be called prior to the next state being produced either if
-     * {@link HollowProducer#restore(long, com.netflix.hollow.api.client.HollowBlobRetriever)}
+     * This will be called prior to the next state being produced either if
+     * {@link HollowProducer#restore(long, com.netflix.hollow.api.consumer.HollowConsumer.BlobRetriever)}
      * hasn't been called or the restore failed.
      *
      * @param version the version of the state that will become the first of a new delta chain
@@ -205,14 +203,14 @@ public interface HollowProducerListener extends EventListener {
         private final long version;
         private final Status status;
         private final Throwable throwable;
-        private final HollowConsumer.ReadState readState;
+        private final HollowProducer.ReadState readState;
 
 
         static ProducerStatus success(long version) {
             return new ProducerStatus(Status.SUCCESS, version, null, null);
         }
 
-        static ProducerStatus success(HollowConsumer.ReadState readState) {
+        static ProducerStatus success(HollowProducer.ReadState readState) {
             return new ProducerStatus(Status.SUCCESS, readState.getVersion(), readState, null);
         }
 
@@ -228,11 +226,11 @@ public interface HollowProducerListener extends EventListener {
             return new ProducerStatus(Status.FAIL, version, null, th);
         }
 
-        static ProducerStatus fail(HollowConsumer.ReadState readState, Throwable th) {
+        static ProducerStatus fail(HollowProducer.ReadState readState, Throwable th) {
             return new ProducerStatus(Status.FAIL, readState.getVersion(), readState, th);
         }
 
-        private ProducerStatus(Status status, long version, HollowConsumer.ReadState readState, Throwable throwable) {
+        private ProducerStatus(Status status, long version, HollowProducer.ReadState readState, Throwable throwable) {
             this.status = status;
             this.version = version;
             this.readState = readState;
@@ -271,18 +269,18 @@ public interface HollowProducerListener extends EventListener {
          *
          * @return Resulting read state engine only if data is added successfully else null.
          */
-        public HollowConsumer.ReadState getReadState() {
+        public ReadState getReadState() {
             return readState;
         }
 
-        static final class Builder {
+        public static final class Builder {
             private final long start;
             private long end;
 
             private long version = Long.MIN_VALUE;
             private Status status = FAIL;
             private Throwable cause = null;
-            private HollowConsumer.ReadState readState = null;
+            private ReadState readState = null;
 
             Builder() {
                 start = System.currentTimeMillis();
@@ -365,7 +363,7 @@ public interface HollowProducerListener extends EventListener {
 
         /**
          * The version desired to restore to when calling
-         * {@link HollowProducer#restore(long, com.netflix.hollow.api.client.HollowBlobRetriever)}
+         * {@link HollowProducer#restore(long, com.netflix.hollow.api.consumer.HollowConsumer.BlobRetriever)}
          *
          * @return the latest announced version or {@code Long.MIN_VALUE} if latest announced version couldn't be
          * retrieved
@@ -376,7 +374,7 @@ public interface HollowProducerListener extends EventListener {
 
         /**
          * The version reached when restoring.
-         * When {@link HollowProducer#restore(long, com.netflix.hollow.api.client.HollowBlobRetriever)}
+         * When {@link HollowProducer#restore(long, com.netflix.hollow.api.consumer.HollowConsumer.BlobRetriever)}
          * succeeds then {@code versionDesired == versionReached} is always true. Can be {@code Long.MIN_VALUE}
          * indicating restore failed to reach any state, or the version of an intermediate state reached.
          *
@@ -484,6 +482,6 @@ public interface HollowProducerListener extends EventListener {
     }
 
     public enum Status {
-        SUCCESS, FAIL
+        SUCCESS, FAIL, SKIP
     }
 }

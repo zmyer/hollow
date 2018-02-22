@@ -19,6 +19,7 @@ package com.netflix.hollow.core.memory;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.BitSet;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -43,15 +44,22 @@ public class ThreadSafeBitSet {
     }
 
     public ThreadSafeBitSet(int log2SegmentSizeInBits) {
+        this(log2SegmentSizeInBits, 0);
+    }
+    
+    public ThreadSafeBitSet(int log2SegmentSizeInBits, int numBitsToPreallocate) {
         if(log2SegmentSizeInBits < 6)
             throw new IllegalArgumentException("Cannot specify fewer than 64 bits in each segment!");
 
         this.log2SegmentSize = log2SegmentSizeInBits;
         this.numLongsPerSegment = (1 << (log2SegmentSizeInBits - 6));
         this.segmentMask = numLongsPerSegment - 1;
+        
+        long numBitsPerSegment = numLongsPerSegment * 64;
+        int numSegmentsToPreallocate = numBitsToPreallocate == 0 ? 1 : (int)(((numBitsToPreallocate - 1) / numBitsPerSegment) + 1);
 
         segments = new AtomicReference<ThreadSafeBitSetSegments>();
-        segments.set(new ThreadSafeBitSetSegments(1, numLongsPerSegment));
+        segments.set(new ThreadSafeBitSetSegments(numSegmentsToPreallocate, numLongsPerSegment));
     }
 
     public void set(int position) {
@@ -404,4 +412,21 @@ public class ThreadSafeBitSet {
         return true;
     }
 
+    /**
+     * create new BitSet with same bits set
+     */
+    public BitSet toBitSet() {
+        BitSet resultSet = new BitSet();
+        int ordinal = this.nextSetBit(0);
+        while(ordinal!=-1) {
+            resultSet.set(ordinal);
+            ordinal = this.nextSetBit(ordinal + 1);
+        }
+        return resultSet;
+    }
+
+    @Override
+    public String toString() {
+        return toBitSet().toString();
+    }
 }
